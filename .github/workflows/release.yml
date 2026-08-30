@@ -18,7 +18,10 @@ jobs:
 
       # pnpm version comes from package.json `packageManager`. Installs
       # Node 24 and runs `pnpm install --frozen-lockfile` in the same step.
-      - uses: pnpm/setup@v2
+      # Pinned exactly: `require-lockfile` landed in v2.1.0 and the floating
+      # `v2` tag still points at v2.0.2, which ignores it. Move back to `v2`
+      # once upstream advances the tag.
+      - uses: pnpm/setup@v2.1.0
         with:
           runtime: node@24
           cache: true
