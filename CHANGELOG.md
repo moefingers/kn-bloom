@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-30
+
 ### Added
 - **Loop seam.** A knob that cuts the loop wherever you like: pick the point count the cycle starts from, and the direction it leaves in. On a 1–7 range a seam of 3 heading down runs 3 → 1 → 7 → 3; heading up it runs 3 → 7 → 1 → 3. The lap is the same length either way — only the cut moves — so exports stay seamless. At the minimum the seam can only head up and at the maximum only down; the barred direction is disabled in the select and the seam is clamped whenever min or max moves.
 
@@ -30,5 +32,6 @@ First tagged release. The app itself predates the repository; this release puts 
 ### Changed
 - Defaults: easing is now **elastic** and move time is **650 ms** (previously ease in-out and 350 ms). The slider, the select, and the engine's `cfg` all agree; *Defaults* restores these.
 
-[Unreleased]: https://github.com/moefingers/kn-bloom/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/moefingers/kn-bloom/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/moefingers/kn-bloom/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/moefingers/kn-bloom/releases/tag/v1.0.0
