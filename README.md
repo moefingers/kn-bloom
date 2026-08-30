@@ -85,6 +85,8 @@ Each script runs `pnpm version <bump>`, which bumps `package.json`, creates a `c
 
 After the workflow finishes, edit the release on github.com if you want to add prose above the auto-generated commit list — see [CHANGELOG.md](CHANGELOG.md) for the project changelog kept in the repo.
 
+If a tag push produces no Release run (this happened once, on the repository's very first push, when the branch and tag landed together in an empty repo), delete and re-push the tag: `git push origin :refs/tags/vX.Y.Z && git push origin vX.Y.Z`.
+
 ## License
 
 [MIT](LICENSE)
