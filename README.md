@@ -8,7 +8,8 @@ Points materialize one by one on a circle, and every pair is joined by a chord �
 
 ## At a glance
 
-- **Motion**: move time, birth time, min/max points (1–24), step pause, turn pause, fade, six easings (ease in-out, linear, in, out, overshoot, elastic with wobble amplitude and decay), ping-pong rewind or reset-to-two at the top
+- **Motion**: move time, birth time, min/max points (1–24), step pause, turn pause, fade, six easings (ease in-out, linear, in, out, overshoot, elastic with wobble amplitude and decay), ping-pong rewind or a snap back to the seam at the end
+- **Loop seam**: where the cycle is cut — the count it starts from and the direction it leaves in. Anywhere between min and max, either way; at the minimum only up, at the maximum only down
 - **Lines**: thickness, glow, opacity, colour — the line colour is also the UI accent
 - **Points**: size, glow, colour
 - **Spectrum**: multi-colour points spread evenly around the hue wheel for the max count (so each point keeps its colour through the whole cycle), global hue rotation, blended chord gradients between neighbouring hues
@@ -21,7 +22,7 @@ Points materialize one by one on a circle, and every pair is joined by a chord �
 
 ## How it works
 
-**Engine** — a single `requestAnimationFrame` loop advances a small state machine (`hold → spawn → move → settle`, and `unspawn` on the way back) on virtual time, so pauses and easings are real milliseconds. Targets for *n* points are `k · 360 / n`; each formation glides its existing points to the new targets while the newest one materializes (or dissolves) with a configurable beat. Rendering is plain Canvas 2D at device pixel ratio, with glow via `shadowBlur`.
+**Engine** — a single `requestAnimationFrame` loop advances a small state machine (`hold → spawn → move → settle`, and `unspawn` on the way back) on virtual time, so pauses and easings are real milliseconds. Targets for *n* points are `k · 360 / n`; each formation glides its existing points to the new targets while the newest one materializes (or dissolves) with a configurable beat. A cycle is one lap from the seam back to it — back at the seam count, about to head off in the seam direction again, either still travelling that way or turning at an end — which is what the exporter counts and cuts on. Rendering is plain Canvas 2D at device pixel ratio, with glow via `shadowBlur`.
 
 **Spectrum** — hue for point *k* is `baseHue + k · 360 / maxN`; a chord between two coloured points is a linear gradient through the shorter arc between their hues (`midHue`), so blends never wrap the long way round the wheel.
 
@@ -47,7 +48,7 @@ pnpm dev       # http://localhost:5173/ — or just open index.html
 `pnpm build` emits exactly one file: `dist/index.html` (~135 kB raw / ~62 kB gzipped). `build/build.mjs`:
 
 1. fetches the Google Fonts stylesheet with a modern Chrome user-agent (so it gets woff2),
-2. keeps only the `latin` subset — the UI is ASCII plus `°`; the `●` and `✕` glyphs already fall back to the system font in the source — which cuts the font payload to roughly a quarter,
+2. keeps only the `latin` subset — the UI is ASCII plus `°`; the `●`, `✕`, `↑` and `↓` glyphs already fall back to the system font in the source — which cuts the font payload to roughly a quarter,
 3. merges the two Space Grotesk weight blocks, which point at the same variable font file, into one `font-weight: 400 500` block so the file is embedded once,
 4. embeds every woff2 as a `data:` URI and replaces the `<link>` with an inline `<style>`,
 5. drops the `preconnect` hints, and

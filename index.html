@@ -148,6 +148,13 @@
       <div class="row"><label for="birthMs">Birth time</label><input type="range" id="birthMs" min="50" max="2000" step="25" value="175"><span class="val" id="birthMsVal"></span></div>
       <div class="row"><label for="minN">Min points</label><input type="range" id="minN" min="1" max="24" step="1" value="1"><span class="val" id="minNVal"></span></div>
       <div class="row"><label for="maxN">Max points</label><input type="range" id="maxN" min="1" max="24" step="1" value="7"><span class="val" id="maxNVal"></span></div>
+      <div class="row"><label for="seamN">Loop seam</label><input type="range" id="seamN" min="1" max="24" step="1" value="1"><span class="val" id="seamNVal"></span></div>
+      <div class="row"><label for="seamDir">Seam heads</label>
+        <select id="seamDir">
+          <option value="1">Up (increment)</option>
+          <option value="-1">Down (decrement)</option>
+        </select>
+      </div>
       <div class="row"><label for="stepPause">Step pause</label><input type="range" id="stepPause" min="0" max="3000" step="50" value="0"><span class="val" id="stepPauseVal"></span></div>
       <div class="row"><label for="turnPause">Turn pause</label><input type="range" id="turnPause" min="0" max="5000" step="50" value="600"><span class="val" id="turnPauseVal"></span></div>
       <div class="row"><label for="fadeMs">Fade</label><input type="range" id="fadeMs" min="0" max="2000" step="50" value="300"><span class="val" id="fadeMsVal"></span></div>
@@ -166,8 +173,9 @@
         <div class="row"><label for="elasticDecay">Wobble decay</label><input type="range" id="elasticDecay" min="2" max="20" step="0.5" value="10"><span class="val" id="elasticDecayVal"></span></div>
       </div>
       <div class="row check"><label for="reverse">Rewind at the end (ping-pong)</label><input type="checkbox" id="reverse" checked></div>
-      <div class="row check"><label for="loop">Reset to two points at the end</label><input type="checkbox" id="loop"></div>
-      <p class="note">All times are real milliseconds: move time is each glide, birth time is the materialize and dissolve beat, step pause follows each formation, turn pause holds at either end, and fade overlaps the movement so change is visible in flight. Rewind takes precedence over reset.</p>
+      <div class="row check"><label for="loop">Snap back to the seam at the end</label><input type="checkbox" id="loop"></div>
+      <p class="note">All times are real milliseconds: move time is each glide, birth time is the materialize and dissolve beat, step pause follows each formation, turn pause holds at either end, and fade overlaps the movement so change is visible in flight. Rewind takes precedence over the snap back.</p>
+      <p class="note">The seam is where the loop is cut: the count it starts from, and the direction it leaves in. At the minimum it can only head up, at the maximum only down. Anywhere between, either way is open &mdash; a seam of 3 heading down on a 1&ndash;7 range runs 3&#8202;&rarr;&#8202;1&#8202;&rarr;&#8202;7&#8202;&rarr;&#8202;3. An export is exactly one lap from the seam back to it.</p>
     </div>
 
     <div class="group">
@@ -246,7 +254,7 @@
   'use strict';
 
   var cfg = {
-    minN: 1, maxN: 7, loop: false, reverse: true,
+    minN: 1, maxN: 7, seamN: 1, seamDir: 1, loop: false, reverse: true,
     moveMs: 650, birthMs: 175,
     stepPause: 0, turnPause: 600, fadeMs: 300, easing: 'elastic',
     elasticAmp: 1, elasticDecay: 10,
@@ -297,6 +305,29 @@
   };
 
   function loOf(c) { return Math.max(1, Math.min(c.minN, c.maxN)); }
+  function hiOf(c) { return Math.max(1, Math.max(c.minN, c.maxN)); }
+
+  function seamOf(c) {
+    var lo = loOf(c), hi = hiOf(c);
+    var v = Math.round(c.seamN);
+    if (!isFinite(v)) v = lo;
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  // Direction the seam departs in. The ends of the range each admit only one.
+  function seamDirOf(c) {
+    var lo = loOf(c), hi = hiOf(c), seam = seamOf(c);
+    if (seam <= lo) return 1;
+    if (seam >= hi) return -1;
+    return c.seamDir < 0 ? -1 : 1;
+  }
+
+  // The cut point of the loop: back at the seam count, about to head off in the
+  // seam direction again -- either still travelling that way, or turning at an end.
+  function atSeam(s, c) {
+    if (s.n !== seamOf(c)) return false;
+    return s.dir === seamDirOf(c) || s.n <= loOf(c) || s.n >= hiOf(c);
+  }
 
   function beats(c) {
     var b = Math.max(50, c.birthMs || 175);
@@ -304,8 +335,8 @@
   }
 
   function resetState(s, c) {
-    var lo = loOf(c);
-    s.n = lo; s.angles = targets(lo); s.dir = 1;
+    var seam = seamOf(c);
+    s.n = seam; s.angles = targets(seam); s.dir = seamDirOf(c);
     s.phase = 'hold'; s.phaseStart = s.vt;
     s.from = null; s.to = null; s.spawnScale = null;
   }
@@ -339,19 +370,19 @@
     var B = beats(c);
 
     if (s.phase === 'hold') {
-      var lo = loOf(c);
-      var atTop = s.n >= c.maxN, atBottom = s.n <= lo;
+      var lo = loOf(c), hi = hiOf(c), seam = seamOf(c);
+      var atTop = s.n >= hi, atBottom = s.n <= lo;
+      var atEnd = (s.dir === 1) ? atTop : atBottom;
       var d = (atTop || atBottom) ? c.turnPause : c.stepPause;
       if (s.vt - s.phaseStart >= d) {
-        if (s.dir === 1) {
-          if (!atTop) beginSpawn(s);
-          else if (c.reverse && s.n > lo) { s.dir = -1; beginRewind(s); }
-          else if (c.loop && s.n > lo) { resetState(s, c); if (s.onCycle) s.onCycle(); }
-          else { s.phaseStart = s.vt; if (s.onCycle) s.onCycle(); }
-        } else {
-          if (!atBottom) beginRewind(s);
-          else { s.dir = 1; beginSpawn(s); }
-        }
+        if (!atEnd) {
+          if (s.dir === 1) beginSpawn(s); else beginRewind(s);
+        } else if (c.reverse && !(atTop && atBottom)) {
+          s.dir = -s.dir;
+          if (s.dir === 1) beginSpawn(s); else beginRewind(s);
+        } else if (c.loop && s.n !== seam) {
+          resetState(s, c); if (s.onCycle) s.onCycle();
+        } else { s.phaseStart = s.vt; if (s.onCycle) s.onCycle(); }
       }
     }
     if (s.phase === 'spawn') {
@@ -371,6 +402,7 @@
         if (s.phase === 'move') {
           s.n += 1; s.angles = targets(s.n);
           s.phase = 'hold'; s.phaseStart = s.vt;
+          if (atSeam(s, c) && s.onCycle) s.onCycle();
         } else {
           s.angles = s.to.slice();
           s.phase = 'despawn'; s.phaseStart = s.vt;
@@ -384,7 +416,7 @@
         s.angles.pop();
         s.n -= 1;
         s.phase = 'hold'; s.phaseStart = s.vt;
-        if (s.n <= loOf(c) && s.onCycle) s.onCycle();
+        if (atSeam(s, c) && s.onCycle) s.onCycle();
       }
     }
   }
@@ -770,7 +802,7 @@
   var LEGACY_KEY = 'chord-bloom-settings-v2';
   var RANGE_MAP = {
     moveMs: ['moveMs', 1], birthMs: ['birthMs', 1],
-    minN: ['minN', 1], maxN: ['maxN', 1],
+    minN: ['minN', 1], maxN: ['maxN', 1], seamN: ['seamN', 1],
     stepPause: ['stepPause', 1], turnPause: ['turnPause', 1], fadeMs: ['fadeMs', 1],
     elasticAmp: ['elasticAmp', 1], elasticDecay: ['elasticDecay', 1],
     lineW: ['lineW', 1], lineGlow: ['lineGlow', 1], lineAlpha: ['lineAlpha', 0.01],
@@ -821,6 +853,7 @@
         if (typeof c[bk] === 'boolean') $(CHECK_MAP[bk]).checked = c[bk];
       }
       if (typeof c.easing === 'string') setSelect('easing', c.easing);
+      if (c.seamDir === 1 || c.seamDir === -1) setSelect('seamDir', c.seamDir);
     }
     if (saved.fps != null) setSelect('expFps', saved.fps);
     if (saved.size != null) setSelect('expSize', saved.size);
@@ -831,8 +864,9 @@
   bindRange('moveMs', 'moveMs', function (v) { return Math.round(v) + 'ms'; });
   bindRange('birthMs', 'birthMs', function (v) { return Math.round(v) + 'ms'; });
   (function () {
-    var minEl = $('minN'), maxEl = $('maxN');
-    var minOut = $('minNVal'), maxOut = $('maxNVal');
+    var minEl = $('minN'), maxEl = $('maxN'), seamEl = $('seamN'), dirEl = $('seamDir');
+    var minOut = $('minNVal'), maxOut = $('maxNVal'), seamOut = $('seamNVal');
+    var upOpt = dirEl.options[0], downOpt = dirEl.options[1];
     function apply(mover) {
       var lo = Math.round(parseFloat(minEl.value));
       var hi = Math.round(parseFloat(maxEl.value));
@@ -841,12 +875,32 @@
         else { lo = hi; minEl.value = String(lo); }
       }
       cfg.minN = lo; cfg.maxN = hi;
+
+      var seam = Math.max(lo, Math.min(hi, Math.round(parseFloat(seamEl.value))));
+      seamEl.min = String(lo);
+      seamEl.max = String(hi);
+      seamEl.value = String(seam);
+      cfg.seamN = seam;
+
+      // The ends of the loop each leave only one way out.
+      var open = lo < hi;
+      downOpt.disabled = open && seam <= lo;
+      upOpt.disabled = open && seam >= hi;
+      var dir = (parseInt(dirEl.value, 10) < 0) ? -1 : 1;
+      if (seam <= lo && open) dir = 1;
+      else if (seam >= hi && open) dir = -1;
+      dirEl.value = String(dir);
+      cfg.seamDir = dir;
+
       minOut.textContent = String(lo);
       maxOut.textContent = String(hi);
+      seamOut.textContent = String(seam) + (dir === 1 ? ' ↑' : ' ↓');
       saveStored();
     }
     minEl.addEventListener('input', function () { apply('min'); });
     maxEl.addEventListener('input', function () { apply('max'); });
+    seamEl.addEventListener('input', function () { apply('seam'); });
+    dirEl.addEventListener('change', function () { apply('dir'); resetState(st, cfg); });
     apply('max');
   })();
   bindRange('stepPause', 'stepPause', function (v) { return Math.round(v) + 'ms'; });

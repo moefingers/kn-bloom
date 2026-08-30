@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Loop seam.** A knob that cuts the loop wherever you like: pick the point count the cycle starts from, and the direction it leaves in. On a 1–7 range a seam of 3 heading down runs 3 → 1 → 7 → 3; heading up it runs 3 → 7 → 1 → 3. The lap is the same length either way — only the cut moves — so exports stay seamless. At the minimum the seam can only head up and at the maximum only down; the barred direction is disabled in the select and the seam is clamped whenever min or max moves.
+
+### Changed
+- With rewind off, the end-of-cycle snap now returns to the **seam** rather than always to the minimum, and it fires at whichever end the seam direction runs into — so a descending-only cycle is possible for the first time. The checkbox is relabelled accordingly. With the seam left at its default (the minimum, heading up) the behaviour is unchanged.
+
 ## [1.0.0] — 2026-08-29
 
 First tagged release. The app itself predates the repository; this release puts it under version control with a build, a deploy, and a release pipeline.
